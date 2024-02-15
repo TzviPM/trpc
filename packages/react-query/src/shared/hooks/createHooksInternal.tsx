@@ -28,6 +28,7 @@ import { createUseQueries } from '../proxy/useQueriesProxy';
 import type { CreateTRPCReactOptions, UseMutationOverride } from '../types';
 import type {
   CreateClient,
+  PrefetchTRPCQueryOptions,
   TRPCProvider,
   TRPCQueryOptions,
   UseTRPCInfiniteQueryOptions,
@@ -129,6 +130,42 @@ export function createRootHooks<
           ...opts,
         }
       : opts;
+  }
+
+  function prefetchQuery(
+    path: string[],
+    input: unknown,
+    prefetchOpts: PrefetchTRPCQueryOptions<TRouter, unknown, unknown, TError>,
+  ) {
+    const { client, queryClient, ...useQueryOpts } = prefetchOpts;
+    const queryKey = getQueryKeyInternal(path, input, 'query');
+
+    const defaultOpts = queryClient.getQueryDefaults(queryKey);
+    const opts = {
+      ...defaultOpts,
+      ...useQueryOpts,
+    };
+
+    const shouldAbortOnUnmount =
+      opts?.trpc?.abortOnUnmount ?? config?.abortOnUnmount ?? false;
+
+    return queryClient.prefetchQuery({
+      ...opts,
+      queryKey: queryKey as any,
+      queryFn: (queryFunctionContext) => {
+        const actualOpts = {
+          ...opts,
+          trpc: {
+            ...opts?.trpc,
+            ...(shouldAbortOnUnmount
+              ? { signal: queryFunctionContext.signal }
+              : {}),
+          },
+        };
+
+        return client.query(...getClientArgs(queryKey, actualOpts));
+      },
+    });
   }
 
   function useQuery(
@@ -494,6 +531,7 @@ export function createRootHooks<
     useContext,
     useUtils: useContext,
     useQuery,
+    prefetchQuery,
     useSuspenseQuery,
     useQueries,
     useSuspenseQueries,

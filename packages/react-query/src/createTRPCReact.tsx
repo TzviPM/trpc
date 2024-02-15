@@ -21,8 +21,10 @@ import type { CreateReactQueryHooks } from './shared/hooks/createHooksInternal';
 import { createRootHooks } from './shared/hooks/createHooksInternal';
 import type {
   CreateClient,
+  DefinedPrefetchTRPCQueryOptions,
   DefinedUseTRPCQueryOptions,
   DefinedUseTRPCQueryResult,
+  PrefetchTRPCQueryOptions,
   TRPCProvider,
   UseTRPCInfiniteQueryOptions,
   UseTRPCInfiniteQueryResult,
@@ -79,6 +81,39 @@ export interface ProcedureUseQuery<TDef extends ResolverDef> {
 }
 
 /**
+ * @internal
+ */
+export interface ProcedurePrefetchQuery<
+  TRouter extends AnyRouter,
+  TDef extends ResolverDef,
+> {
+  <TQueryFnData extends TDef['output'] = TDef['output'], TData = TQueryFnData>(
+    input: TDef['input'],
+    opts: DefinedPrefetchTRPCQueryOptions<
+      TRouter,
+      TQueryFnData,
+      TData,
+      TRPCClientErrorLike<{
+        errorShape: TDef['errorShape'];
+        transformer: TDef['transformer'];
+      }>,
+      TDef['output']
+    >,
+  ): Promise<void>;
+
+  <TQueryFnData extends TDef['output'] = TDef['output'], TData = TQueryFnData>(
+    input: TDef['input'],
+    opts?: PrefetchTRPCQueryOptions<
+      TRouter,
+      TQueryFnData,
+      TData,
+      TRPCClientErrorLike<TDef>,
+      TDef['output']
+    >,
+  ): Promise<void>;
+}
+
+/**
  * @remark `void` is here due to https://github.com/trpc/trpc/pull/4374
  */
 type CursorInput = {
@@ -127,11 +162,15 @@ export type MaybeDecoratedInfiniteQuery<TDef extends ResolverDef> =
 /**
  * @internal
  */
-export type DecoratedQueryMethods<TDef extends ResolverDef> = {
+export type DecoratedQueryMethods<
+  TRouter extends AnyRouter,
+  TDef extends ResolverDef,
+> = {
   /**
    * @link https://trpc.io/docs/v11/client/react/useQuery
    */
   useQuery: ProcedureUseQuery<TDef>;
+  prefetchQuery: ProcedurePrefetchQuery<TRouter, TDef>;
   /**
    * @link https://trpc.io/docs/v11/client/react/suspense#usesuspensequery
    */
@@ -151,8 +190,10 @@ export type DecoratedQueryMethods<TDef extends ResolverDef> = {
 /**
  * @internal
  */
-export type DecoratedQuery<TDef extends ResolverDef> =
-  MaybeDecoratedInfiniteQuery<TDef> & DecoratedQueryMethods<TDef>;
+export type DecoratedQuery<
+  TRouter extends AnyRouter,
+  TDef extends ResolverDef,
+> = MaybeDecoratedInfiniteQuery<TDef> & DecoratedQueryMethods<TRouter, TDef>;
 
 export type DecoratedMutation<TDef extends ResolverDef> = {
   /**
@@ -176,10 +217,11 @@ export type DecoratedMutation<TDef extends ResolverDef> = {
  * @internal
  */
 export type DecorateProcedure<
+  TRouter extends AnyRouter,
   TType extends ProcedureType,
   TDef extends ResolverDef,
 > = TType extends 'query'
-  ? DecoratedQuery<TDef>
+  ? DecoratedQuery<TRouter, TDef>
   : TType extends 'mutation'
   ? DecoratedMutation<TDef>
   : TType extends 'subscription'
@@ -201,14 +243,16 @@ export type DecorateProcedure<
  * @internal
  */
 export type DecorateRouterRecord<
+  TRouter extends AnyRouter,
   TRoot extends AnyRootTypes,
   TRecord extends RouterRecord,
 > = {
   [TKey in keyof TRecord]: TRecord[TKey] extends infer $Value
     ? $Value extends RouterRecord
-      ? DecorateRouterRecord<TRoot, $Value>
+      ? DecorateRouterRecord<TRouter, TRoot, $Value>
       : $Value extends AnyProcedure
       ? DecorateProcedure<
+          TRouter,
           $Value['_def']['type'],
           {
             input: inferProcedureInput<$Value>;
@@ -247,6 +291,7 @@ export type CreateTRPCReact<
 > = ProtectedIntersection<
   CreateTRPCReactBase<TRouter, TSSRContext>,
   DecorateRouterRecord<
+    TRouter,
     TRouter['_def']['_config']['$types'],
     TRouter['_def']['record']
   >

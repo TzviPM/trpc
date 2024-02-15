@@ -4,6 +4,7 @@ import type {
   InfiniteData,
   InfiniteQueryObserverSuccessResult,
   InitialDataFunction,
+  QueryClient,
   QueryObserverSuccessResult,
   QueryOptions,
   UseBaseQueryOptions,
@@ -66,6 +67,17 @@ export interface UseTRPCQueryOptions<
     >,
     TRPCUseQueryBaseOptions {}
 
+export interface PrefetchTRPCQueryOptions<
+  TRouter extends AnyRouter,
+  TOutput,
+  TData,
+  TError,
+  TQueryOptsData = TOutput,
+> extends UseTRPCQueryOptions<TOutput, TData, TError, TQueryOptsData> {
+  client: TRPCUntypedClient<TRouter>;
+  queryClient: QueryClient;
+}
+
 export interface UseTRPCSuspenseQueryOptions<TOutput, TData, TError>
   extends DistributiveOmit<
       UseSuspenseQueryOptions<TOutput, TError, TData, any>,
@@ -81,6 +93,20 @@ export interface DefinedUseTRPCQueryOptions<
   TQueryOptsData = TOutput,
 > extends DistributiveOmit<
     UseTRPCQueryOptions<TOutput, TData, TError, TQueryOptsData>,
+    'queryKey'
+  > {
+  initialData: InitialDataFunction<TQueryOptsData> | TQueryOptsData;
+}
+
+/** @internal **/
+export interface DefinedPrefetchTRPCQueryOptions<
+  TRouter extends AnyRouter,
+  TOutput,
+  TData,
+  TError,
+  TQueryOptsData = TOutput,
+> extends DistributiveOmit<
+    PrefetchTRPCQueryOptions<TRouter, TOutput, TData, TError, TQueryOptsData>,
     'queryKey'
   > {
   initialData: InitialDataFunction<TQueryOptsData> | TQueryOptsData;
